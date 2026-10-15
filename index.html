@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sistema de Calificaciones 2026 - ITOL</title>
+<!-- Librería para exportar a PDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<!-- Librería para generar libros de Excel con múltiples pestañas/hojas -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root{--blue:#153b63;--navy:#174c7e;--bg:#f4f7fb;--line:#c5d2e0;--text:#203044;--accent:#d9edf7}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+header{background:linear-gradient(120deg,#153b63,#1e5f9e);color:white;padding:18px 16px;border-bottom:4px solid #bce8f1}
+.wrap{max-width:1200px;margin:auto}h1{font-size:clamp(20px,3vw,26px);margin:0 0 5px;text-transform:uppercase;letter-spacing:.5px}header p{margin:0;opacity:.9;font-size:13px}
+main{max-width:1200px;margin:20px auto;padding:0 14px 40px}.panel{background:white;border:1px solid var(--line);border-radius:8px;padding:20px;margin-bottom:18px;box-shadow:0 2px 8px rgba(0,0,0,0.05)}
+h2{font-size:16px;color:var(--navy);margin:0 0 14px;border-bottom:2px solid var(--accent);padding-bottom:6px;text-transform:uppercase}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.field{display:flex;flex-direction:column;gap:5px}.field.wide{grid-column:span 2}label{font-size:12px;font-weight:700;color:#41556b}input,select{width:100%;padding:9px 10px;border:1px solid #a6b9cd;border-radius:4px;background:#fff;font-size:13px;color:#203044}input:focus,select:focus{outline:2px solid #bce8f1;border-color:var(--navy)}
+
+.subjects-container{display:flex;flex-direction:column;gap:12px;margin-top:10px}
+.subject-card{background:#f8fafc;border:1px solid var(--line);border-radius:6px;padding:12px}
+.subject-title{font-size:13px;font-weight:bold;color:#153b63;margin-bottom:8px;border-bottom:1px solid #d0dbe5;padding-bottom:4px;text-transform:uppercase}
+.partials-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.partial-field{display:flex;flex-direction:column;gap:3px}
+.partial-field label{font-size:10px;color:#556b82;text-align:center;font-weight:bold}
+.partial-field input{text-align:center;font-weight:bold;padding:6px;font-size:12px}
+
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}button{border:0;border-radius:6px;padding:10px 16px;font-weight:700;cursor:pointer;font-size:13px}.primary{background:var(--navy);color:white}.secondary{background:#e2e8f0;color:#1e3a5f}.danger{background:#f8d7da;color:#842029}.status{padding:10px;border-radius:6px;background:#e7f3fe;border:1px solid #b8daff;font-size:12px;line-height:1.4;color:#0c5460}.muted{color:#5a6d82;font-size:12px;line-height:1.4}.tablewrap{overflow:auto}table{border-collapse:collapse;width:100%;min-width:800px;font-size:12px}th,td{padding:8px 10px;border:1px solid var(--line);text-align:left}th{background:#eaf2f8;color:#153b63;text-align:center}.hidden{display:none!important}
+@media(max-width:760px){.grid,.partials-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.field.wide{grid-column:span 2}}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Instituto Técnico Obdulio Lezama (ITOL)</h1>
+    <p>Cuadro Consolidado de Calificaciones 2026 · Secretaría de Educación · Dirección Departamental de Comayagua</p>
+  </div>
+</header>
+<main>
+<section class="panel" id="loginPanel">
+  <h2>Acceso en línea de maestros</h2>
+  <p class="muted">Ingrese su correo institucional para registrar calificaciones en el cuadro general.</p>
+  <div class="grid">
+    <div class="field wide"><label for="email">Correo electrónico</label><input id="email" type="email" autocomplete="username" placeholder="maestro@itol.edu.hn" value="maestro@itol.edu.hn"></div>
+    <div class="field wide"><label for="password">Contraseña</label><input id="password" type="password" autocomplete="current-password" placeholder="Contraseña" value="123456"></div>
+  </div>
+  <div class="actions">
+    <button class="primary" id="loginBtn">Iniciar sesión</button>
+    <button class="secondary" id="signupBtn">Crear cuenta de maestro</button>
+  </div>
+</section>
+
+<section class="panel hidden" id="appPanel">
+  <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
+    <div>
+      <h2 style="margin-bottom:0; border:none; padding:0;" id="formTitleHeading">Registrar nuevo estudiante (4 Parciales)</h2>
+      <p class="muted" id="loggedUserDisplay" style="margin:4px 0 0; font-weight:700; color:var(--navy);"></p>
+    </div>
+    <button class="secondary" id="logoutBtn">Cerrar sesión</button>
+  </div>
+  <div class="status" id="connectionStatus" style="margin-top:12px;">Sesión activa. Puede buscar un estudiante abajo y cargarlo aquí para editarlo.</div>
+  
+  <form id="studentForm">
+    <input type="hidden" id="editIndex" value="-1">
+    <h2 style="margin-top:20px">1. Datos Académicos y Ubicación</h2>
+    <div class="grid">
+      <div class="field">
+        <label for="course">Curso *</label>
+        <select id="course" required>
+          <option value="">Seleccione...</option>
+          <option>7.º grado</option><option>8.º grado</option><option>9.º grado</option><option>10.º grado</option>
+          <option>11.º Agropecuaria</option><option>11.º Humanidades</option><option>11.º Informática</option>
+          <option>12.º Agropecuaria</option><option>12.º Informática</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="section">Sección *</label>
+        <select id="section" required>
+          <option value="">Seleccione...</option><option>1</option><option>2</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="modality">Modalidad *</label>
+        <select id="modality" required>
+          <option value="">Seleccione...</option><option>Matutina</option><option>Vespertina</option>
+        </select>
+      </div>
+      <div class="field"><label for="year">Año lectivo</label><input id="year" type="number" value="2026" min="2020" max="2100"></div>
+      <div class="field wide"><label for="placeDate">Lugar y fecha</label><input id="placeDate" placeholder="Ej. San Antonio de la Cuesta, Comayagua, 2026"></div>
+      <div class="field"><label for="order">N.º de orden</label><input id="order" type="number" min="1" placeholder="1"></div>
+    </div>
+
+    <h2 style="margin-top:22px">2. Identificación del Estudiante</h2>
+    <div class="grid">
+      <div class="field wide"><label for="fullName">Nombre completo del estudiante *</label><input id="fullName" required placeholder="Apellidos y nombres"></div>
+      <div class="field wide"><label for="identity">N.º de identidad / registro</label><input id="identity" placeholder="Número de identidad"></div>
+    </div>
+
+    <h2 style="margin-top:22px">3. Calificaciones por Materia (1.º a 4.º Parcial)</h2>
+    <p class="muted">Ingrese la nota de cada parcial (0 a 100) para las asignaturas correspondientes al curso.</p>
+    <div class="subjects-container" id="subjects"></div>
+
+    <div class="actions">
+      <button class="primary" type="submit" id="submitBtn">Guardar estudiante en el cuadro</button>
+      <button class="danger" type="button" id="clearFormBtn">Limpiar formulario completo</button>
+      <button class="secondary" type="button" id="exportBtn">Exportar a Excel (Hojas independientes por curso)</button>
+    </div>
+  </form>
+</section>
+
+<section class="panel hidden" id="recordsPanel">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px">
+    <h2 style="margin-bottom:0; border:none; padding:0;">Estudiantes Registrados en el Cuadro Consolidado</h2>
+    <div style="display:flex; gap:8px; width: 300px;">
+      <input id="searchInput" type="text" placeholder="Buscar por nombre o identidad..." style="padding:7px 10px; font-size:12px;">
+    </div>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr>
+          <th>N.º Orden</th>
+          <th>Nombre del Alumno</th>
+          <th>Curso</th>
+          <th>Sección</th>
+          <th>Modalidad</th>
+          <th>Promedio General</th>
+          <th>Profesor Registrador</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="recordsBody"></tbody>
+    </table>
+  </div>
+  <p class="muted" id="recordCount" style="margin-top:10px;"></p>
+</section>
+</main>
+
+<div id="pdfTemplate" style="display:none; padding: 25px; font-family: Arial, sans-serif; color: #203044; background: #fff;">
+  <div style="text-align:center; border-bottom: 2px solid #153b63; padding-bottom: 12px; margin-bottom: 15px;">
+    <h3 style="margin: 0; color: #153b63; font-size: 15px;">INSTITUTO TÉCNICO OBDULIO LEZAMA (ITOL)</h3>
+    <p style="margin: 3px 0; font-size: 12px;">SECRETARÍA DE EDUCACIÓN · DIRECCIÓN DEPARTAMENTAL DE COMAYAGUA</p>
+    <p style="margin: 3px 0 0; font-size: 11px; color: #555;" id="pdfPlaceDate">Lugar y fecha</p>
+  </div>
+  <div style="margin-bottom: 15px; font-size: 12px; line-height: 1.5;">
+    <p style="margin: 3px 0;"><strong>Alumno:</strong> <span id="pdfName"></span></p>
+    <p style="margin: 3px 0;"><strong>Identidad:</strong> <span id="pdfIdentity"></span> | <strong>N.º Orden:</strong> <span id="pdfOrder"></span></p>
+    <p style="margin: 3px 0;"><strong>Curso:</strong> <span id="pdfCourse"></span> | <strong>Sección:</strong> <span id="pdfSection"></span> | <strong>Modalidad:</strong> <span id="pdfModality"></span></p>
+  </div>
+  <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 10px;">
+    <thead>
+      <tr style="background: #eaf2f8; color: #153b63;">
+        <th style="padding: 5px; border: 1px solid #c5d2e0; text-align: left;">Asignatura</th>
+        <th style="padding: 5px; border: 1px solid #c5d2e0; text-align: center;">1.º P</th>
+        <th style="padding: 5px; border: 1px solid #c5d2e0; text-align: center;">2.º P</th>
+        <th style="padding: 5px; border: 1px solid #c5d2e0; text-align: center;">3.º P</th>
+        <th style="padding: 5px; border: 1px solid #c5d2e0; text-align: center;">4.º P</th>
+        <th style="padding: 5px; border: 1px solid #c5d2e0; text-align: center;">Prom</th>
+      </tr>
+    </thead>
+    <tbody id="pdfSubjectsBody"></tbody>
+  </table>
+  <div style="text-align: right; font-size: 12px; margin-top: 10px;">
+    <p><strong>Promedio Institucional: <span id="pdfAverage" style="color: #153b63;"></span></strong></p>
+  </div>
+  <div style="margin-top: 25px; font-size: 11px; color: #555;">
+    <p>Registrado por el docente: <span id="pdfTeacher"></span></p>
+  </div>
+  <div style="margin-top: 40px; display: flex; justify-content: space-between; text-align: center; font-size: 11px;">
+    <div>________________________________<br>Firma del Docente</div>
+    <div>________________________________<br>Sello Institucional</div>
+  </div>
+</div>
+
+<script>
+const classSubjects = {
+  '7.º grado':['CIENCIAS NATURALES','DIBUJO TÉCNICO','EDUCACIÓN ARTISTICA','EDUCACIÓN CÍVICA','EDU. FÍSICA Y DEPORTES','ESPAÑOL','ESTUDIOS SOCIALES','INGLÉS','MATEMÁTICAS','MÓDULO BÁSICOS'],
+  '8.º grado':['CIENCIAS NATURALES','DIBUJO TÉCNICO','EDUCACIÓN ARTISTICA','EDUCACIÓN CÍVICA','EDU. FÍSICA Y DEPORTES','ESPAÑOL','ESTUDIOS SOCIALES','INGLÉS','MATEMÁTICAS','MÓDULO BÁSICOS'],
+  '9.º grado':['CIENCIAS NATURALES','DIBUJO TÉCNICO','EDUCACIÓN ARTISTICA','EDUCACIÓN CÍVICA','EDU. FÍSICA Y DEPORTES','ESPAÑOL','ESTUDIOS SOCIALES','INGLÉS','MATEMÁTICAS','MÓDULO BÁSICOS'],
+  '10.º grado':['QUÍMICA','ESPAÑOL','MATEMÁTICAS','INGLÉS','FUNDAMENTOS DE PSICOLOGÍA','BIOLOGÍA','FÍSICA','SOCIOLOGÍA','EDU. FÍSICA Y DEPORTE','HISTORIA DE HONDURAS','INFORMÁTICA'],
+  '11.º Agropecuaria':['MANEJO DE CULTIVOS AGRÍCOLAS - FORESTALES I','SOCIOLOGÍA RURAL','EDUCACIÓN ARTÍSTICA','MATEMÁTICA APLICADA','MANEJO DE ESPECIES MENORES','PROYECTOS AGROPECUARIOS - FORESTALES','FÍSICA APLICADA','ENCADENAMIENTO AGROPECUARIO O FORESTAL','DESARROLLO Y EXTENSIÓN AGROPECUARIO - FORESTAL','MANEJO SOSTENIBLE DE RECURSOS NATURALES','LEGISLACIÓN AGROPECUARIA-FORESTAL','LENGUA Y LITERATURA','INGLÉS TÉCNICO'],
+  '11.º Humanidades':['QUÍMICA','INTRODUCCIÓN A LA ECONOMÍA','BIOLOGÍA','FÍSICA','EDUCACIÓN Y APRECIACIÓN ARTÍSTICA','INGLÉS','FILOSOFÍA','HISTORIA UNIVERSAL','ANTROPOLOGÍA','MATEMÁTICA','ESPAÑOL'],
+  '11.º Informática':['EDUCACIÓN Y APRECIACIÓN ARTÍSTICA','FÍSICA','FILOSOFÍA','LEGISLACIÓN APLICADA A LA INFORMÁTICA','MATEMÁTICA','ESPAÑOL','OFIMÁTICA','INGLÉS TÉCNICO','ANÁLISIS Y DISEÑO DE SISTEMAS','PROGRAMACIÓN I','INFORMÁTICA APLICADA'],
+  '12.º Agropecuaria':['FILOSOFÍA','MANEJO DE ESPECIES MAYORES','HABILIDADES PARA LA VIDA','AGRICULTURA SOSTENIBLE','DESARROLLO COMUNITARIO Y ASOCIATIVISMO','EDUCACIÓN FINANCIERA AGROPECUARIA- FORESTAL','EMPRENDIMIENTO AGROPECUARIO - FORESTAL','INVESTIGACIÓN Y VALIDACIÓN AGROPECUARIA - FORESTAL','INDUSTRIALIZACIÓN AGROPECUARIA - FORESTAL','MANEJO DE CULTIVOS AGRICOLAS - FORESTALES II'],
+  '12.º Informática':['DISEÑO WEB','PRODUCCIONES DIGITALES','GESTIÓN EMPRESARIAL ORIENTADA A INFORMÁTICA','PROGRAMACIÓN II','REDES INFORMÁTICAS','MANTENIMIENTO Y REPARACIÓN']
+};
+
+let subjectsList = [];
+const subjectsEl = document.getElementById('subjects');
+const courseSelect = document.getElementById('course');
+
+function drawSubjects(existingGrades = {}) {
+  subjectsList = classSubjects[courseSelect.value] || [];
+  subjectsEl.innerHTML = '';
+  subjectsList.forEach((s, idx) => {
+    const card = document.createElement('div');
+    card.className = 'subject-card';
+    
+    const gradesObj = existingGrades[s] || {p1:'', p2:'', p3:'', p4:''};
+
+    card.innerHTML = `
+      <div class="subject-title">${s}</div>
+      <div class="partials-grid">
+        <div class="partial-field">
+          <label for="sub_${idx}_p1">1.º Parcial</label>
+          <input id="sub_${idx}_p1" type="number" min="0" max="100" step="0.01" placeholder="0-100" value="${gradesObj.p1 !== undefined ? gradesObj.p1 : ''}">
+        </div>
+        <div class="partial-field">
+          <label for="sub_${idx}_p2">2.º Parcial</label>
+          <input id="sub_${idx}_p2" type="number" min="0" max="100" step="0.01" placeholder="0-100" value="${gradesObj.p2 !== undefined ? gradesObj.p2 : ''}">
+        </div>
+        <div class="partial-field">
+          <label for="sub_${idx}_p3">3.º Parcial</label>
+          <input id="sub_${idx}_p3" type="number" min="0" max="100" step="0.01" placeholder="0-100" value="${gradesObj.p3 !== undefined ? gradesObj.p3 : ''}">
+        </div>
+        <div class="partial-field">
+          <label for="sub_${idx}_p4">4.º Parcial</label>
+          <input id="sub_${idx}_p4" type="number" min="0" max="100" step="0.01" placeholder="0-100" value="${gradesObj.p4 !== undefined ? gradesObj.p4 : ''}">
+        </div>
+      </div>
+    `;
+    subjectsEl.appendChild(card);
+  });
+}
+
+courseSelect.addEventListener('change', () => drawSubjects());
+drawSubjects();
+
+const loginPanel = document.getElementById('loginPanel');
+const appPanel = document.getElementById('appPanel');
+const recordsPanel = document.getElementById('recordsPanel');
+let currentUser = null;
+let localRecords = [];
+
+try {
+  localRecords = JSON.parse(localStorage.getItem('calificaciones2026_registros') || '[]');
+} catch {
+  localRecords = [];
+}
+
+document.getElementById('loginBtn').addEventListener('click', () => {
+  const email = document.getElementById('email').value.trim();
+  if(!email) { alert('Ingrese su correo'); return; }
+  currentUser = { email };
+  document.getElementById('loggedUserDisplay').textContent = `Docente activo: ${email}`;
+  showApp();
+});
+
+document.getElementById('signupBtn').addEventListener('click', () => {
+  const email = document.getElementById('email').value.trim();
+  if(!email) { alert('Ingrese un correo válido.'); return; }
+  alert(`Cuenta registrada para: ${email}. Ya puede iniciar sesión.`);
+});
+
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  currentUser = null;
+  loginPanel.classList.remove('hidden');
+  appPanel.classList.add('hidden');
+  recordsPanel.classList.add('hidden');
+});
+
+function showApp() {
+  loginPanel.classList.add('hidden');
+  appPanel.classList.remove('hidden');
+  recordsPanel.classList.remove('hidden');
+  renderRecords();
+}
+
+// Limpiar formulario completo
+document.getElementById('clearFormBtn').addEventListener('click', () => {
+  if(confirm('¿Está seguro de limpiar el formulario?')) {
+    resetFormState();
+  }
+});
+
+function resetFormState() {
+  document.getElementById('studentForm').reset();
+  document.getElementById('editIndex').value = '-1';
+  document.getElementById('year').value = '2026';
+  document.getElementById('formTitleHeading').textContent = 'Registrar nuevo estudiante (4 Parciales)';
+  document.getElementById('submitBtn').textContent = 'Guardar estudiante en el cuadro';
+  drawSubjects();
+}
+
+function collectData() {
+  const grades = {};
+  let allNumericScores = [];
+
+  subjectsList.forEach((s, idx) => {
+    const p1 = document.getElementById(`sub_${idx}_p1`).value;
+    const p2 = document.getElementById(`sub_${idx}_p2`).value;
+    const p3 = document.getElementById(`sub_${idx}_p3`).value;
+    const p4 = document.getElementById(`sub_${idx}_p4`).value;
+
+    grades[s] = {
+      p1: p1 === '' ? '' : Number(p1),
+      p2: p2 === '' ? '' : Number(p2),
+      p3: p3 === '' ? '' : Number(p3),
+      p4: p4 === '' ? '' : Number(p4)
+    };
+
+    [p1, p2, p3, p4].forEach(val => {
+      if(val !== '' && Number.isFinite(Number(val))) {
+        allNumericScores.push(Number(val));
+      }
+    });
+  });
+
+  const generalAvg = allNumericScores.length ? Math.round(allNumericScores.reduce((a, b) => a + b, 0) / allNumericScores.length * 100) / 100 : '';
+
+  return {
+    id: Date.now(),
+    course: courseSelect.value,
+    section: document.getElementById('section').value,
+    modality: document.getElementById('modality').value,
+    year: document.getElementById('year').value,
+    placeDate: document.getElementById('placeDate').value || 'San Antonio de la Cuesta, Comayagua, 2026',
+    order: document.getElementById('order').value || '1',
+    fullName: document.getElementById('fullName').value.trim(),
+    identity: document.getElementById('identity').value.trim(),
+    grades,
+    average: generalAvg,
+    teacher: currentUser?.email || 'Maestro'
+  };
+}
+
+document.getElementById('studentForm').addEventListener('submit', e => {
+  e.preventDefault();
+  if(!currentUser) { alert('Inicie sesión primero.'); return; }
+  
+  const editIdx = parseInt(document.getElementById('editIndex').value, 10);
+  const r = collectData();
+  
+  let outOfRange = false;
+  Object.values(r.grades).forEach(sub => {
+    ['p1','p2','p3','p4'].forEach(p => {
+      if(sub[p] !== '' && (sub[p] < 0 || sub[p] > 100)) outOfRange = true;
+    });
+  });
+
+  if(outOfRange) {
+    alert('Las calificaciones deben estar comprendidas entre 0 y 100.');
+    return;
+  }
+
+  if(editIdx >= 0) {
+    // Actualizar registro existente manteniendo su ID original
+    r.id = localRecords[editIdx].id;
+    localRecords[editIdx] = r;
+    alert(`Estudiante actualizado correctamente en el cuadro.`);
+  } else {
+    // Guardar nuevo registro
+    localRecords.push(r);
+    alert(`Estudiante guardado exitosamente en el cuadro por: ${currentUser.email}`);
+  }
+
+  saveAndRefresh();
+  resetFormState();
+});
+
+function saveAndRefresh() {
+  try {
+    localStorage.setItem('calificaciones2026_registros', JSON.stringify(localRecords));
+  } catch(err) {
+    alert('No se pudo guardar localmente.');
+  }
+  renderRecords(document.getElementById('searchInput').value);
+}
+
+function renderRecords(filterText = '') {
+  const body = document.getElementById('recordsBody');
+  body.innerHTML = '';
+  
+  const query = filterText.toLowerCase().trim();
+  const filtered = localRecords.filter(r => {
+    const name = (r.fullName || '').toLowerCase();
+    const iden = (r.identity || '').toLowerCase();
+    return name.includes(query) || iden.includes(query);
+  });
+
+  filtered.forEach((r) => {
+    const originalIdx = localRecords.findIndex(item => item.id === r.id);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.order || '-'}</td>
+      <td><strong>${r.fullName}</strong></td>
+      <td>${r.course}</td>
+      <td>${r.section}</td>
+      <td>${r.modality}</td>
+      <td><strong>${r.average}</strong></td>
+      <td><span style="color:#174c7e; font-weight:700;">${r.teacher || 'Maestro'}</span></td>
+      <td>
+        <button class="primary" style="padding:4px 8px; font-size:11px;" onclick="loadRecordToForm(${originalIdx})">Cargar / Editar</button>
+        <button class="secondary" style="padding:4px 8px; font-size:11px;" onclick="downloadPDF(${r.id})">PDF</button>
+        <button class="danger" style="padding:4px 8px; font-size:11px;" onclick="deleteRecord(${originalIdx})">Eliminar</button>
+      </td>
+    `;
+    body.appendChild(tr);
+  });
+  document.getElementById('recordCount').textContent = `Mostrando ${filtered.length} de ${localRecords.length} estudiantes registrados en el cuadro.`;
+}
+
+// Función para cargar los datos del estudiante de vuelta en el formulario superior
+window.loadRecordToForm = function(idx) {
+  const r = localRecords[idx];
+  if(!r) return;
+
+  document.getElementById('editIndex').value = idx;
+  document.getElementById('course').value = r.course || '';
+  drawSubjects(r.grades || {});
+
+  document.getElementById('section').value = r.section || '';
+  document.getElementById('modality').value = r.modality || '';
+  document.getElementById('year').value = r.year || '2026';
+  document.getElementById('placeDate').value = r.placeDate || '';
+  document.getElementById('order').value = r.order || '';
+  document.getElementById('fullName').value = r.fullName || '';
+  document.getElementById('identity').value = r.identity || '';
+
+  document.getElementById('formTitleHeading').textContent = `Editando estudiante: ${r.fullName}`;
+  document.getElementById('submitBtn').textContent = 'Actualizar cambios del estudiante';
+
+  // Desplazar la pantalla hacia arriba suavemente para ver el formulario
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  renderRecords(e.target.value);
+});
+
+window.deleteRecord = function(idx) {
+  if(confirm('¿Está seguro de eliminar este registro del cuadro?')) {
+    localRecords.splice(idx, 1);
+    saveAndRefresh();
+  }
+};
+
+window.downloadPDF = function(id) {
+  const r = localRecords.find(item => item.id === id);
+  if(!r) return;
+
+  document.getElementById('pdfPlaceDate').textContent = r.placeDate;
+  document.getElementById('pdfName').textContent = r.fullName;
+  document.getElementById('pdfIdentity').textContent = r.identity || 'N/D';
+  document.getElementById('pdfOrder').textContent = r.order;
+  document.getElementById('pdfCourse').textContent = r.course;
+  document.getElementById('pdfSection').textContent = r.section;
+  document.getElementById('pdfModality').textContent = r.modality;
+  document.getElementById('pdfAverage').textContent = r.average;
+  document.getElementById('pdfTeacher').textContent = r.teacher || 'Maestro';
+
+  const pdfBody = document.getElementById('pdfSubjectsBody');
+  pdfBody.innerHTML = '';
+  
+  for(const [subject, scores] of Object.entries(r.grades)) {
+    const p1Val = scores.p1 !== '' ? scores.p1 : '-';
+    const p2Val = scores.p2 !== '' ? scores.p2 : '-';
+    const p3Val = scores.p3 !== '' ? scores.p3 : '-';
+    const p4Val = scores.p4 !== '' ? scores.p4 : '-';
+    
+    const validScores = [scores.p1, scores.p2, scores.p3, scores.p4].filter(v => v !== '' && Number.isFinite(v));
+    const subAvg = validScores.length ? Math.round(validScores.reduce((a,b)=>a+b,0)/validScores.length*100)/100 : '-';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="padding: 5px; border: 1px solid #c5d2e0;"><strong>${subject}</strong></td>
+      <td style="padding: 5px; border: 1px solid #c5d2e0; text-align: center;">${p1Val}</td>
+      <td style="padding: 5px; border: 1px solid #c5d2e0; text-align: center;">${p2Val}</td>
+      <td style="padding: 5px; border: 1px solid #c5d2e0; text-align: center;">${p3Val}</td>
+      <td style="padding: 5px; border: 1px solid #c5d2e0; text-align: center;">${p4Val}</td>
+      <td style="padding: 5px; border: 1px solid #c5d2e0; text-align: center; font-weight: bold; background:#f8fafc;">${subAvg}</td>
+    `;
+    pdfBody.appendChild(tr);
+  }
+
+  const element = document.getElementById('pdfTemplate');
+  element.style.display = 'block';
+
+  const opt = {
+    margin:       10,
+    filename:     `Calificaciones_${r.fullName.replace(/\s+/g, '_')}.pdf`,
+    image:        { type: 'jpeg', quality: 0.98 },
+    html2canvas:  { scale: 2 },
+    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
+
+  html2pdf().from(element).set(opt).save().then(() => {
+    element.style.display = 'none';
+  });
+};
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+  if(!localRecords.length){ alert('No hay registros en el cuadro para exportar.'); return; }
+  
+  const wb = XLSX.utils.book_new();
+
+  const groupedByCourse = {};
+  localRecords.forEach(r => {
+    const c = r.course || 'Sin_Curso';
+    if(!groupedByCourse[c]) groupedByCourse[c] = [];
+    groupedByCourse[c].push(r);
+  });
+
+  Object.keys(groupedByCourse).forEach(courseName => {
+    const courseRecords = groupedByCourse[courseName];
+    const courseSubjectsList = classSubjects[courseName] || [];
+
+    const headersLine1 = ['N.º Orden', 'Nombre Completo del Estudiante', 'Número de Identidad', 'Sección', 'Modalidad', 'Año Lectivo'];
+    const headersLine2 = ['', '', '', '', '', ''];
+
+    courseSubjectsList.forEach(s => {
+      headersLine1.push(s, '', '', '', '');
+      headersLine2.push('1.º P', '2.º P', '3.º P', '4.º P', 'Promedio');
+    });
+
+    headersLine1.push('Promedio General', 'Docente Registrador');
+    headersLine2.push('', '');
+
+    const sheetRows = [
+      [`INSTITUTO TÉCNICO OBDULIO LEZAMA (ITOL) - CUADRO CONSOLIDADO 2026`],
+      [`CURSO: ${courseName.toUpperCase()}`],
+      [`SECRETARÍA DE EDUCACIÓN - COMAYAGUA`],
+      [""],
+      headersLine1,
+      headersLine2
+    ];
+
+    courseRecords.forEach(r => {
+      const row = [
+        r.order || '',
+        r.fullName || '',
+        r.identity || '',
+        r.section || '',
+        r.modality || '',
+        r.year || ''
+      ];
+
+      courseSubjectsList.forEach(s => {
+        const g = r.grades?.[s] || {p1:'', p2:'', p3:'', p4:''};
+        const p1 = g.p1 !== undefined ? g.p1 : '';
+        const p2 = g.p2 !== undefined ? g.p2 : '';
+        const p3 = g.p3 !== undefined ? g.p3 : '';
+        const p4 = g.p4 !== undefined ? g.p4 : '';
+
+        const vals = [p1, p2, p3, p4].filter(v => v !== '' && Number.isFinite(Number(v)));
+        const avg = vals.length ? Math.round(vals.reduce((a,b)=>a+b,0)/vals.length*100)/100 : '';
+
+        row.push(p1, p2, p3, p4, avg);
+      });
+
+      row.push(r.average || '', r.teacher || '');
+      sheetRows.push(row);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(sheetRows);
+    const cleanSheetName = courseName.replace(/[\/\\\?\*\[\]]/g, '').substring(0, 30);
+    XLSX.utils.book_append_sheet(wb, ws, cleanSheetName);
+  });
+
+  XLSX.writeFile(wb, `Consolidado_ITOL_2026_Por_Cursos.xlsx`);
+});
+</script>
+</body>
+</html>
